@@ -23,8 +23,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   String? _lastNotificationId;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _notifSub;
 
-  late final List<Widget> _screens;
-
   final List<String> _titles = [
     'Teacher Dashboard',
     'My Timetable',
@@ -36,18 +34,28 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Widget build(BuildContext context) {
     _notifSub ??= _listenForNotifications();
 
-    _screens = [
-      TeacherHome(
-        onTakeAttendanceTap: () {
-          setState(() {
-            _selectedIndex = 2; // Attendance tab
-          });
-        },
-      ),
-      const TimetableScreen(),
-      const AttendanceScreen(),
-      const HomeworkScreen(),
-    ];
+    Widget body;
+    switch (_selectedIndex) {
+      case 1:
+        body = const TimetableScreen();
+        break;
+      case 2:
+        body = const AttendanceScreen();
+        break;
+      case 3:
+        body = const HomeworkScreen();
+        break;
+      case 0:
+      default:
+        body = TeacherHome(
+          onTakeAttendanceTap: () {
+            setState(() {
+              _selectedIndex = 2; // Attendance tab
+            });
+          },
+        );
+        break;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -78,7 +86,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         ],
       ),
       drawer: AppDrawer(role: 'teacher'),
-      body: _screens[_selectedIndex],
+      body: body,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {

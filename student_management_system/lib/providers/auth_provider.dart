@@ -403,14 +403,16 @@ class AuthProvider extends ChangeNotifier {
     final snap = await FirebaseFirestore.instance
         .collection('attendance')
         .where('studentId', isEqualTo: user.id)
-        .orderBy('date')
         .get();
 
-    _studentAttendance[user.id] = snap.docs.map((d) {
+    final list = snap.docs.map((d) {
       final data = d.data();
       data['id'] = d.id;
       return Attendance.fromMap(data);
     }).toList();
+
+    list.sort((a, b) => a.date.compareTo(b.date));
+    _studentAttendance[user.id] = list;
 
     notifyListeners();
   }

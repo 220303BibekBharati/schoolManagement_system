@@ -78,20 +78,65 @@ class _AttendanceViewScreenState extends State<AttendanceViewScreen> {
                           horizontal: 16.0,
                           vertical: 12.0,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        child: Column(
                           children: [
-                            _StatChip(
-                              label: 'Present',
-                              value: presentDays.toString(),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _StatChip(
+                                  label: 'Present',
+                                  value: presentDays.toString(),
+                                ),
+                                _StatChip(
+                                  label: 'Absent',
+                                  value: absentDays.toString(),
+                                ),
+                                _StatChip(
+                                  label: 'Overall %',
+                                  value: '$overallPercent%',
+                                ),
+                              ],
                             ),
-                            _StatChip(
-                              label: 'Absent',
-                              value: absentDays.toString(),
-                            ),
-                            _StatChip(
-                              label: 'Overall %',
-                              value: '$overallPercent%',
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              height: 160,
+                              width: 160,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  SizedBox(
+                                    height: 160,
+                                    width: 160,
+                                    child: CircularProgressIndicator(
+                                      value: totalDays == 0
+                                          ? 0
+                                          : presentDays / totalDays,
+                                      strokeWidth: 12,
+                                      backgroundColor:
+                                          Colors.red.withOpacity(0.2),
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
+                                              Colors.green),
+                                    ),
+                                  ),
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '$overallPercent%',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Text('Overall Attendance'),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
