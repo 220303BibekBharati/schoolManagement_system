@@ -399,13 +399,38 @@ class AuthProvider extends ChangeNotifier {
   Future<void> loadAttendanceForCurrentStudent() async {
     final user = _currentUser;
     if (user == null) return;
+    final col = FirebaseFirestore.instance.collection('attendance');
 
-    final snap = await FirebaseFirestore.instance
-        .collection('attendance')
-        .where('studentId', isEqualTo: user.id)
-        .get();
+    // New-style records: match by studentId (current user id)
+    final byIdSnap = await col.where('studentId', isEqualTo: user.id).get();
 
-    final list = snap.docs.map((d) {
+    // Legacy records: match by studentName + className (e.g. "Class 10")
+    QuerySnapshot<Map<String, dynamic>>? byNameSnap;
+    try {
+      if (user.name.isNotEmpty && (user.className ?? '').isNotEmpty) {
+        byNameSnap = await col
+            .where('studentName', isEqualTo: user.name)
+            .where('className', isEqualTo: user.className)
+            .get();
+      }
+    } catch (_) {
+      // If composite index is missing, just skip legacy name-based query
+      byNameSnap = null;
+    }
+
+    final seenIds = <String>{};
+    final allDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+    for (final d in byIdSnap.docs) {
+      if (seenIds.add(d.id)) allDocs.add(d);
+    }
+    if (byNameSnap != null) {
+      for (final d in byNameSnap.docs) {
+        if (seenIds.add(d.id)) allDocs.add(d);
+      }
+    }
+
+    final list = allDocs.map((d) {
       final data = d.data();
       data['id'] = d.id;
       return Attendance.fromMap(data);

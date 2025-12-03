@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:student_management_system/providers/auth_provider.dart';
-import 'package:student_management_system/screens/student/homework_view.dart';
+import 'package:student_management_system/screens/student/lesson_list.dart';
 
 class MyClassesScreen extends StatefulWidget {
   const MyClassesScreen({super.key});
@@ -101,8 +101,9 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => HomeworkViewScreen(
-                                initialSubject: subject,
+                              builder: (_) => LessonListScreen(
+                                classNumber: classNumber,
+                                subject: subject,
                               ),
                             ),
                           );
