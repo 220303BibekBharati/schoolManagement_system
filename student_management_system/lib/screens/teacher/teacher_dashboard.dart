@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
+import 'package:student_management_system/providers/auth_provider.dart';
+
 import 'package:student_management_system/screens/teacher/attendance_screen.dart';
 import 'package:student_management_system/screens/teacher/timetable_screen.dart';
 import 'package:student_management_system/screens/teacher/homework_screen.dart';
@@ -165,24 +168,92 @@ class TeacherHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final user = auth.currentUser;
+    final name = user?.name ?? 'Teacher';
+    final subject = user?.subject ?? 'Subject';
+    final className = user?.className ?? 'No class assigned';
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Welcome, Teacher!',
-              style: Theme.of(context).textTheme.headlineMedium,
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.deepPurple.shade500,
+                    Colors.indigo.shade400,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome,',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    name,
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.book, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        subject,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.white.withOpacity(0.9)),
+                      ),
+                      const SizedBox(width: 16),
+                      const Icon(Icons.class_, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        className,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.white.withOpacity(0.9)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            const Text('Today\'s schedule and quick actions'),
             const SizedBox(height: 24),
+            Text(
+              'Quick actions',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
             GridView.count(
               shrinkWrap: true,
               crossAxisCount: 4,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
+              physics: const NeverScrollableScrollPhysics(),
               children: [
                 _ActionCard(
                   title: 'Take Attendance',
@@ -212,6 +283,9 @@ class TeacherHome extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -251,7 +325,7 @@ class TeacherHome extends StatelessWidget {
   }
 }
 
-class _ActionCard extends StatelessWidget {
+class _ActionCard extends StatefulWidget {
   final String title;
   final IconData icon;
   final Color color;
@@ -265,29 +339,49 @@ class _ActionCard extends StatelessWidget {
   });
 
   @override
+  State<_ActionCard> createState() => _ActionCardState();
+}
+
+class _ActionCardState extends State<_ActionCard> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                backgroundColor: color.withOpacity(0.1),
-                child: Icon(icon, color: color),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: AnimatedScale(
+        scale: _hovering ? 1.05 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutBack,
+        child: Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          elevation: _hovering ? 4 : 1,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: widget.color.withOpacity(0.1),
+                    child: Icon(widget.icon, color: widget.color),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -73,6 +73,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       attendanceForDate.putIfAbsent(roll, () => true); // default present
     }
 
+    final totalStudents = students.length;
+    final presentCount =
+        attendanceForDate.values.where((v) => v == true).length;
+    final absentCount = totalStudents - presentCount;
+    final presentPercent = totalStudents == 0
+        ? 0
+        : ((presentCount / totalStudents) * 100).round();
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Attendance - Class $classNumber'),
@@ -100,62 +108,112 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Card(
-                elevation: 1,
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Class',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Class $classNumber',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Date',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 4),
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.calendar_today, size: 18),
-                              onPressed: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: _selectedDate,
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (picked != null) {
-                                  setState(() {
-                                    _selectedDate = picked;
-                                  });
-                                }
-                              },
-                              label: Text(dateKey),
-                            ),
-                          ],
-                        ),
-                      ),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.indigo.shade500,
+                      Colors.blue.shade400,
                     ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Class',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Class $classNumber',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(color: Colors.white),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Chip(
+                                label: Text(
+                                  'Present: $presentCount',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                backgroundColor:
+                                    Colors.greenAccent.withOpacity(0.6),
+                              ),
+                              const SizedBox(width: 8),
+                              Chip(
+                                label: Text(
+                                  'Absent: $absentCount',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                backgroundColor:
+                                    Colors.redAccent.withOpacity(0.6),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Date',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white70),
+                            ),
+                            icon:
+                                const Icon(Icons.calendar_today, size: 18),
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _selectedDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2100),
+                              );
+                              if (picked != null) {
+                                setState(() {
+                                  _selectedDate = picked;
+                                });
+                              }
+                            },
+                            label: Text(dateKey),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$presentPercent% present',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -169,7 +227,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    'Swipe toggles',
+                    'Use the switch to toggle',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
@@ -187,11 +245,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   final present = attendanceForDate[roll] ?? true;
 
                   return Card(
+                    color: present
+                        ? Colors.green.shade50
+                        : Colors.red.shade50,
                     margin: const EdgeInsets.symmetric(vertical: 6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor:
-                            present ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                        backgroundColor: present
+                            ? Colors.green.shade100
+                            : Colors.red.shade100,
                         child: Text(
                           roll.toString(),
                           style: TextStyle(
@@ -205,6 +270,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         present ? 'Present' : 'Absent',
                         style: TextStyle(
                           color: present ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       trailing: Switch(

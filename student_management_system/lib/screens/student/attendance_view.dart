@@ -50,6 +50,7 @@ class _AttendanceViewScreenState extends State<AttendanceViewScreen> {
         records.where((r) => r.status.toLowerCase() == 'absent').length;
     final overallPercent =
         totalDays == 0 ? 0 : ((presentDays / totalDays) * 100).round();
+    final presentRatio = totalDays == 0 ? 0.0 : presentDays / totalDays;
 
     final monthGroups = <String, List<Attendance>>{};
     for (final r in records) {
@@ -73,10 +74,13 @@ class _AttendanceViewScreenState extends State<AttendanceViewScreen> {
                   children: [
                     Card(
                       elevation: 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16.0,
-                          vertical: 12.0,
+                          vertical: 16.0,
                         ),
                         child: Column(
                           children: [
@@ -97,26 +101,24 @@ class _AttendanceViewScreenState extends State<AttendanceViewScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 20),
                             SizedBox(
-                              height: 160,
-                              width: 160,
+                              height: 170,
+                              width: 170,
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
                                   SizedBox(
-                                    height: 160,
-                                    width: 160,
+                                    height: 170,
+                                    width: 170,
                                     child: CircularProgressIndicator(
-                                      value: totalDays == 0
-                                          ? 0
-                                          : presentDays / totalDays,
+                                      value: presentRatio,
                                       strokeWidth: 12,
-                                      backgroundColor:
-                                          Colors.red.withOpacity(0.2),
+                                      backgroundColor: Colors.redAccent,
                                       valueColor:
                                           const AlwaysStoppedAnimation<Color>(
-                                              Colors.green),
+                                        Colors.green,
+                                      ),
                                     ),
                                   ),
                                   Column(
@@ -132,7 +134,15 @@ class _AttendanceViewScreenState extends State<AttendanceViewScreen> {
                                             ),
                                       ),
                                       const SizedBox(height: 4),
-                                      const Text('Overall Attendance'),
+                                      Text(
+                                        'Overall Attendance',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: Colors.grey[600],
+                                            ),
+                                      ),
                                     ],
                                   ),
                                 ],
@@ -185,10 +195,14 @@ class _AttendanceViewScreenState extends State<AttendanceViewScreen> {
 
                             return Card(
                               margin: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                               child: Padding(
-                                padding: const EdgeInsets.all(12.0),
+                                padding: const EdgeInsets.all(14.0),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       label,
@@ -196,35 +210,68 @@ class _AttendanceViewScreenState extends State<AttendanceViewScreen> {
                                           .textTheme
                                           .titleMedium,
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 10),
                                     SizedBox(
-                                      height: 20,
-                                      child: ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(10),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              flex:
-                                                  (presentRatio * 100).round(),
-                                              child: Container(
-                                                color: Colors.green,
+                                      height: 18,
+                                      child: LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          final presentWidth =
+                                              constraints.maxWidth * presentRatio;
+                                          final absentWidth =
+                                              constraints.maxWidth * absentRatio;
+
+                                          return Stack(
+                                            children: [
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey
+                                                      .withOpacity(0.15),
+                                                  borderRadius:
+                                                      BorderRadius.circular(9),
+                                                ),
                                               ),
-                                            ),
-                                            Expanded(
-                                              flex:
-                                                  (absentRatio * 100).round(),
-                                              child: Container(
-                                                color: Colors.red,
+                                              Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: AnimatedContainer(
+                                                  duration: const Duration(
+                                                      milliseconds: 400),
+                                                  curve: Curves.easeOutCubic,
+                                                  width: presentWidth,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.green
+                                                        .withOpacity(0.85),
+                                                    borderRadius:
+                                                        BorderRadius.circular(9),
+                                                  ),
+                                                ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
+                                              Align(
+                                                alignment: Alignment.centerRight,
+                                                child: AnimatedContainer(
+                                                  duration: const Duration(
+                                                      milliseconds: 400),
+                                                  curve: Curves.easeOutCubic,
+                                                  width: absentWidth,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.red
+                                                        .withOpacity(0.7),
+                                                    borderRadius:
+                                                        BorderRadius.circular(9),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 6),
                                     Text(
                                       '${(presentRatio * 100).round()}% present • ${(absentRatio * 100).round()}% absent',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: Colors.grey[700]),
                                     ),
                                   ],
                                 ),

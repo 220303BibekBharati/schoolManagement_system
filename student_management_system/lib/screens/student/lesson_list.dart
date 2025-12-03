@@ -41,8 +41,20 @@ class _LessonListScreenState extends State<LessonListScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final lessons = auth.getLessonsForClass(widget.classNumber);
-    final homeworks = auth.getHomeworksForClass(widget.classNumber);
+    final allHomeworks = auth.getHomeworksForClass(widget.classNumber);
+
+    List<Map<String, dynamic>> _filterHomeworksBySubject(
+        List<Map<String, dynamic>> items) {
+      return items.where((item) {
+        final s = (item['subject'] as String? ?? '').trim();
+        if (s.isEmpty) return false;
+        return s.toLowerCase() == widget.subject.toLowerCase();
+      }).toList();
+    }
+
+    final homeworks = _filterHomeworksBySubject(allHomeworks);
+
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -55,65 +67,164 @@ class _LessonListScreenState extends State<LessonListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Lessons',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Lessons',
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      Chip(
+                        label: Text('Class ${widget.classNumber}'),
+                        backgroundColor:
+                            theme.colorScheme.primary.withOpacity(0.08),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
-                  if (lessons.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text(
-                          'No lessons available for this subject yet.'),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: lessons.length,
-                      itemBuilder: (context, index) {
-                        final l = lessons[index];
-                        final title = (l['title'] as String?)?.trim();
-                        final desc = (l['desc'] as String?)?.trim() ?? '';
-                        final displayTitle = title != null && title.isNotEmpty
-                            ? title
-                            : 'Lesson ${index + 1}';
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('classes')
+                        .doc(widget.classNumber.toString())
+                        .collection('lessons')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                            child: CircularProgressIndicator());
+                      }
 
-                        return Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.menu_book),
-                            title: Text(displayTitle),
-                            subtitle: desc.isNotEmpty
-                                ? Text(
-                                    desc,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  )
-                                : null,
-                            trailing: const Icon(Icons.arrow_forward_ios,
-                                size: 16),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => LessonDetailScreen(
-                                    title: displayTitle,
-                                    description: desc,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text(
+                              'No lessons available for this subject yet.'),
                         );
-                      },
-                    ),
+                      }
+
+                      // Filter by subject on client side to avoid index issues
+                      final docs = snapshot.data!.docs.where((d) {
+                        final data = d.data();
+                        final s = (data['subject'] as String? ?? '').trim();
+                        if (s.isEmpty) return false;
+                        return s.toLowerCase() ==
+                            widget.subject.toLowerCase();
+                      }).toList();
+
+                      if (docs.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text(
+                              'No lessons available for this subject yet.'),
+                        );
+                      }
+
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final data = docs[index].data();
+                          final title = (data['title'] as String?)?.trim();
+                          final desc = (data['desc'] as String?)?.trim() ?? '';
+                          final imageUrl =
+                              (data['imageUrl'] as String?)?.trim() ?? '';
+                          final displayTitle = title != null && title.isNotEmpty
+                              ? title
+                              : 'Lesson ${index + 1}';
+
+                          return Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            color: Colors.orange.shade50,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => LessonDetailScreen(
+                                      title: displayTitle,
+                                      description: desc,
+                                      imageUrl: imageUrl,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor:
+                                          Colors.white.withOpacity(0.9),
+                                      child: const Icon(Icons.menu_book,
+                                          color: Colors.deepOrange),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            displayTitle,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium,
+                                          ),
+                                          if (desc.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                  top: 4.0,
+                                                  right: 4.0,
+                                                  bottom: 4.0),
+                                              child: Text(
+                                                desc,
+                                                maxLines: 2,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          if (imageUrl.isNotEmpty)
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              child: Image.network(
+                                                imageUrl,
+                                                height: 80,
+                                                width: double.infinity,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error,
+                                                        stackTrace) =>
+                                                    const SizedBox(),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.arrow_forward_ios,
+                                        size: 16),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Homework',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        style: theme.textTheme.titleLarge,
                       ),
                     ],
                   ),
@@ -125,10 +236,11 @@ class _LessonListScreenState extends State<LessonListScreen> {
                           Text('No homework assigned for this subject yet.'),
                     )
                   else
-                    ListView.builder(
+                    ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: homeworks.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final h = homeworks[index];
                         final title = (h['title'] as String?)?.trim();
@@ -139,13 +251,22 @@ class _LessonListScreenState extends State<LessonListScreen> {
                         final homeworkId = h['id'] as String? ?? '';
 
                         return Card(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          color: Colors.lightBlue.shade50,
                           child: ListTile(
-                            leading: const Icon(Icons.assignment),
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  Colors.white.withOpacity(0.9),
+                              child: const Icon(Icons.assignment,
+                                  color: Colors.blueAccent),
+                            ),
                             title: Text(displayTitle),
                             subtitle: desc.isNotEmpty
                                 ? Text(
                                     desc,
-                                    maxLines: 1,
+                                    maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   )
                                 : null,
@@ -279,11 +400,13 @@ class HomeworkDetailScreen extends StatelessWidget {
 class LessonDetailScreen extends StatelessWidget {
   final String title;
   final String description;
+  final String imageUrl;
 
   const LessonDetailScreen({
     super.key,
     required this.title,
     required this.description,
+    this.imageUrl = '',
   });
 
   @override
@@ -295,9 +418,26 @@ class LessonDetailScreen extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
-          child: Text(
-            description.isNotEmpty ? description : 'No details provided for this lesson.',
-            style: Theme.of(context).textTheme.bodyLarge,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                description.isNotEmpty
+                    ? description
+                    : 'No details provided for this lesson.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              if (imageUrl.isNotEmpty) const SizedBox(height: 16),
+              if (imageUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    imageUrl,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+            ],
           ),
         ),
       ),

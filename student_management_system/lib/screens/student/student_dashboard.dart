@@ -30,14 +30,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
     const StudentHome(),
     const MyClassesScreen(),
     const AttendanceViewScreen(),
-    const HomeworkViewScreen(),
   ];
 
   final List<String> _titles = [
     'Student Dashboard',
     'My Classes',
     'Attendance',
-    'Homework',
   ];
 
   @override
@@ -93,10 +91,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
           NavigationDestination(
             icon: Icon(Icons.calendar_today),
             label: 'Attendance',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.assignment),
-            label: 'Homework',
           ),
         ],
       ),
@@ -180,11 +174,16 @@ class _StudentHomeContentState extends State<_StudentHomeContent> {
       final auth = context.read<AuthProvider>();
       final user = auth.currentUser;
       final classNumber = _extractClassNumber(user?.className);
+      // Load attendance for current student so stats are available
+      await auth.loadAttendanceForCurrentStudent();
+
+      // Load timetable and homework for this class so dashboard stats are ready
       if (classNumber != null) {
         setState(() {
           _isLoadingTimetable = true;
         });
         await auth.loadTimetableForClass(classNumber);
+        await auth.loadHomeworksForClass(classNumber);
         if (mounted) {
           setState(() {
             _isLoadingTimetable = false;
@@ -222,96 +221,160 @@ class _StudentHomeContentState extends State<_StudentHomeContent> {
     // Real total classes from today's timetable entries
     final totalClasses = timetable.length;
 
-    return Padding(
+    final theme = Theme.of(context);
+    final name = user?.name ?? 'Student';
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Welcome, Student!',
-              style: Theme.of(context).textTheme.headlineMedium,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header card
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primary,
+                  theme.colorScheme.primary.withOpacity(0.8),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(height: 16),
-            const Text('Your academic overview'),
-            const SizedBox(height: 24),
-            GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 4,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _StatCard(
-                  title: 'Attendance %',
-                  value: '${attendancePercent}%',
-                  icon: Icons.check_circle,
-                  color: Colors.green,
+                Text(
+                  'Welcome,',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withOpacity(0.9),
+                  ),
                 ),
-                _StatCard(
-                  title: 'Homework',
-                  value: homeworkCount.toString(),
-                  icon: Icons.assignment,
-                  color: Colors.orange,
+                const SizedBox(height: 4),
+                Text(
+                  name,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                _StatCard(
-                  title: 'Total Classes',
-                  value: totalClasses.toString(),
-                  icon: Icons.class_,
-                  color: Colors.blue,
-                ),
-                const _StatCard(
-                  title: 'Grade',
-                  value: '-',
-                  icon: Icons.grade,
-                  color: Colors.purple,
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.class_, color: Colors.white.withOpacity(0.9), size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      classNumber != null ? 'Class $classNumber' : 'No class assigned',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 32),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Today\'s Timetable',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    if (_isLoadingTimetable)
-                      const Center(child: CircularProgressIndicator())
-                    else if (classNumber == null)
-                      const Text('No class assigned.')
-                    else if (timetable.isEmpty)
-                      const Text('No timetable defined for your class.')
-                    else
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: timetable.length,
-                        itemBuilder: (context, index) {
-                          final t = timetable[index];
-                          return _TimeTableItem(
-                            subject: t['subject'] ?? '',
-                            time: t['time'] ?? '',
-                            teacher: '',
-                            room: '',
-                          );
-                        },
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Your academic overview',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 4,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _StatCard(
+                title: 'Attendance %',
+                value: '${attendancePercent}%',
+                icon: Icons.check_circle,
+                color: Colors.green,
+              ),
+              _StatCard(
+                title: 'Homework',
+                value: homeworkCount.toString(),
+                icon: Icons.assignment,
+                color: Colors.orange,
+              ),
+              _StatCard(
+                title: 'Total Classes',
+                value: totalClasses.toString(),
+                icon: Icons.class_,
+                color: Colors.blue,
+              ),
+              const _StatCard(
+                title: 'Grade',
+                value: '-',
+                icon: Icons.grade,
+                color: Colors.purple,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 1,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Today\'s Timetable',
+                        style: theme.textTheme.titleMedium,
                       ),
-                  ],
-                ),
+                      if (classNumber != null)
+                        Chip(
+                          label: Text('Class $classNumber'),
+                          backgroundColor:
+                              theme.colorScheme.primary.withOpacity(0.08),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_isLoadingTimetable)
+                    const Center(child: CircularProgressIndicator())
+                  else if (classNumber == null)
+                    const Text('No class assigned.')
+                  else if (timetable.isEmpty)
+                    const Text('No timetable defined for your class.')
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: timetable.length,
+                      itemBuilder: (context, index) {
+                        final t = timetable[index];
+                        return _TimeTableItem(
+                          subject: t['subject'] ?? '',
+                          time: t['time'] ?? '',
+                          teacher: '',
+                          room: '',
+                        );
+                      },
+                    ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _StatCard extends StatefulWidget {
   final String title;
   final String value;
   final IconData icon;
@@ -325,32 +388,59 @@ class _StatCard extends StatelessWidget {
   });
 
   @override
+  State<_StatCard> createState() => _StatCardState();
+}
+
+class _StatCardState extends State<_StatCard> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              backgroundColor: color.withOpacity(0.1),
-              child: Icon(icon, color: color),
+    final theme = Theme.of(context);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: AnimatedScale(
+        scale: _hovering ? 1.08 : 1.0,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutBack,
+        child: Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          color: widget.color.withOpacity(0.08),
+          elevation: _hovering ? 4 : 1,
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.white,
+                  child:
+                      Icon(widget.icon, color: widget.color, size: 22),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.value,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.title,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

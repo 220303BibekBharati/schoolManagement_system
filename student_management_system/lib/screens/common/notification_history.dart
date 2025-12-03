@@ -47,23 +47,72 @@ class NotificationHistoryScreen extends StatelessWidget {
             );
           }
 
-          return ListView.builder(
+          return ListView.separated(
+            padding: const EdgeInsets.all(16.0),
             itemCount: docs.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final data = docs[index].data();
               final title = data['title'] as String? ?? 'Notification';
               final body = data['body'] as String? ?? '';
-              final createdAt = data['createdAt'] as String?;
+              final createdAtStr = data['createdAt'] as String?;
 
-              String subtitle = body;
-              if (createdAt != null) {
-                subtitle = '$body\n$createdAt';
+              DateTime? createdAt;
+              if (createdAtStr != null) {
+                try {
+                  createdAt = DateTime.parse(createdAtStr);
+                } catch (_) {}
               }
 
-              return ListTile(
-                leading: const Icon(Icons.notifications),
-                title: Text(title),
-                subtitle: Text(subtitle),
+              final timeLabel = createdAt != null
+                  ? '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}  '
+                      '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}'
+                  : createdAtStr ?? '';
+
+              final iconColor = role == 'teacher'
+                  ? Colors.deepPurple
+                  : Colors.blueAccent;
+
+              return Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: iconColor.withOpacity(0.1),
+                    child: Icon(
+                      Icons.notifications,
+                      color: iconColor,
+                    ),
+                  ),
+                  title: Text(
+                    title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (body.isNotEmpty)
+                        Text(
+                          body,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      const SizedBox(height: 4),
+                      Text(
+                        timeLabel,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           );

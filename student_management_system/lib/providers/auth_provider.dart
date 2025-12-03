@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_management_system/services/auth_service.dart';
@@ -442,19 +444,52 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<String?> uploadLessonImage(Uint8List data, String path) async {
+    final ref = FirebaseStorage.instance.ref().child(path);
+    final task = await ref.putData(data);
+    return await task.ref.getDownloadURL();
+  }
+
   Future<void> addLesson({
     required int classNumber,
     required String title,
     required String desc,
+    String? imageUrl,
   }) async {
     // Persist to Firestore; subject will be set by caller via currentUser.subject
     final classes = FirebaseFirestore.instance.collection('classes');
     await classes.doc(classNumber.toString()).collection('lessons').add({
       'title': title,
       'desc': desc,
+      'imageUrl': imageUrl ?? '',
       'subject': _currentUser?.subject ?? '',
       'createdAt': DateTime.now().toIso8601String(),
     });
+
+    await loadLessonsForClass(classNumber);
+  }
+
+  Future<void> deleteLesson({
+    required int classNumber,
+    required String lessonId,
+  }) async {
+    final classes = FirebaseFirestore.instance.collection('classes');
+
+    // New path
+    await classes
+        .doc(classNumber.toString())
+        .collection('lessons')
+        .doc(lessonId)
+        .delete()
+        .catchError((_) {});
+
+    // Legacy path (ignore errors)
+    await classes
+        .doc('Class $classNumber')
+        .collection('lessons')
+        .doc(lessonId)
+        .delete()
+        .catchError((_) {});
 
     await loadLessonsForClass(classNumber);
   }
@@ -482,9 +517,11 @@ class AuthProvider extends ChangeNotifier {
     _classLessons[classNumber] = allDocs.map((d) {
       final data = d.data();
       return {
+        'id': d.id,
         'title': data['title'] as String? ?? '',
         'desc': data['desc'] as String? ?? '',
-        'subject': '',
+        'imageUrl': data['imageUrl'] as String? ?? '',
+        'subject': data['subject'] as String? ?? '',
       };
     }).toList();
     notifyListeners();
@@ -533,7 +570,7 @@ class AuthProvider extends ChangeNotifier {
         'id': d.id,
         'title': data['title'] as String? ?? '',
         'desc': data['desc'] as String? ?? '',
-        'subject': '',
+        'subject': data['subject'] as String? ?? '',
       };
     }).toList();
     notifyListeners();
