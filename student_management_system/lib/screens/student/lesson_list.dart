@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:student_management_system/providers/auth_provider.dart';
 
-class LessonListScreen extends StatelessWidget {
+class LessonListScreen extends StatefulWidget {
   final int classNumber;
   final String subject;
 
@@ -14,170 +14,164 @@ class LessonListScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final lessonsStream = FirebaseFirestore.instance
-        .collection('classes')
-        .doc(classNumber.toString())
-        .collection('lessons')
-        .where('subject', isEqualTo: subject)
-        .orderBy('createdAt')
-        .snapshots();
+  State<LessonListScreen> createState() => _LessonListScreenState();
+}
 
-    final homeworkStream = FirebaseFirestore.instance
-        .collection('classes')
-        .doc(classNumber.toString())
-        .collection('homeworks')
-        .where('subject', isEqualTo: subject)
-        .orderBy('createdAt')
-        .snapshots();
+class _LessonListScreenState extends State<LessonListScreen> {
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final auth = context.read<AuthProvider>();
+      setState(() {
+        _isLoading = true;
+      });
+      await auth.loadLessonsForClass(widget.classNumber);
+      await auth.loadHomeworksForClass(widget.classNumber);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final lessons = auth.getLessonsForClass(widget.classNumber);
+    final homeworks = auth.getHomeworksForClass(widget.classNumber);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(subject),
+        title: Text(widget.subject),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Lessons',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: lessonsStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Lessons',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  if (lessons.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                          'No lessons available for this subject yet.'),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: lessons.length,
+                      itemBuilder: (context, index) {
+                        final l = lessons[index];
+                        final title = (l['title'] as String?)?.trim();
+                        final desc = (l['desc'] as String?)?.trim() ?? '';
+                        final displayTitle = title != null && title.isNotEmpty
+                            ? title
+                            : 'Lesson ${index + 1}';
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text('No lessons available for this subject yet.'),
-                  );
-                }
-
-                final docs = snapshot.data!.docs;
-
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data();
-                    final title = (data['title'] as String?)?.trim();
-                    final desc = (data['desc'] as String?)?.trim() ?? '';
-                    final displayTitle = title != null && title.isNotEmpty
-                        ? title
-                        : 'Lesson ${index + 1}';
-
-                    return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.menu_book),
-                        title: Text(displayTitle),
-                        subtitle: desc.isNotEmpty
-                            ? Text(
-                                desc,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              )
-                            : null,
-                        trailing:
-                            const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => LessonDetailScreen(
-                                title: displayTitle,
-                                description: desc,
-                              ),
-                            ),
-                          );
-                        },
+                        return Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.menu_book),
+                            title: Text(displayTitle),
+                            subtitle: desc.isNotEmpty
+                                ? Text(
+                                    desc,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                : null,
+                            trailing: const Icon(Icons.arrow_forward_ios,
+                                size: 16),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => LessonDetailScreen(
+                                    title: displayTitle,
+                                    description: desc,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Homework',
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    );
-                  },
-                );
-              },
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (homeworks.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child:
+                          Text('No homework assigned for this subject yet.'),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: homeworks.length,
+                      itemBuilder: (context, index) {
+                        final h = homeworks[index];
+                        final title = (h['title'] as String?)?.trim();
+                        final desc = (h['desc'] as String?)?.trim() ?? '';
+                        final displayTitle = title != null && title.isNotEmpty
+                            ? title
+                            : 'Homework ${index + 1}';
+                        final homeworkId = h['id'] as String? ?? '';
+
+                        return Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.assignment),
+                            title: Text(displayTitle),
+                            subtitle: desc.isNotEmpty
+                                ? Text(
+                                    desc,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                : null,
+                            trailing: const Icon(Icons.arrow_forward_ios,
+                                size: 16),
+                            onTap: () {
+                              if (homeworkId.isEmpty) return;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => HomeworkDetailScreen(
+                                    classNumber: widget.classNumber,
+                                    homeworkId: homeworkId,
+                                    title: displayTitle,
+                                    description: desc,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Homework',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: homeworkStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text('No homework assigned for this subject yet.'),
-                  );
-                }
-
-                final docs = snapshot.data!.docs;
-
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data();
-                    final title = (data['title'] as String?)?.trim();
-                    final desc = (data['desc'] as String?)?.trim() ?? '';
-                    final displayTitle = title != null && title.isNotEmpty
-                        ? title
-                        : 'Homework ${index + 1}';
-                    final homeworkId = docs[index].id;
-
-                    return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.assignment),
-                        title: Text(displayTitle),
-                        subtitle: desc.isNotEmpty
-                            ? Text(
-                                desc,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              )
-                            : null,
-                        trailing:
-                            const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => HomeworkDetailScreen(
-                                classNumber: classNumber,
-                                homeworkId: homeworkId,
-                                title: displayTitle,
-                                description: desc,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

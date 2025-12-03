@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:student_management_system/providers/auth_provider.dart';
+import 'package:student_management_system/models/attendance.dart';
 import 'package:student_management_system/screens/student/my_classes.dart';
 import 'package:student_management_system/screens/student/attendance_view.dart';
 import 'package:student_management_system/screens/student/homework_view.dart';
@@ -203,6 +204,24 @@ class _StudentHomeContentState extends State<_StudentHomeContent> {
         ? auth.getTimetableForClass(classNumber)
         : const <Map<String, String>>[];
 
+    // Real attendance stats for this student
+    final List<Attendance> attendanceRecords = user != null
+        ? auth.getAttendanceForStudent(user.id)
+        : const <Attendance>[];
+    final totalDays = attendanceRecords.length;
+    final presentDays = attendanceRecords
+        .where((r) => r.status.toLowerCase() == 'present')
+        .length;
+    final attendancePercent =
+        totalDays == 0 ? 0 : ((presentDays / totalDays) * 100).round();
+
+    // Real homework count for this class (uses provider cache if loaded)
+    final homeworkCount =
+        classNumber != null ? auth.getHomeworksForClass(classNumber).length : 0;
+
+    // Real total classes from today's timetable entries
+    final totalClasses = timetable.length;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SingleChildScrollView(
@@ -221,28 +240,28 @@ class _StudentHomeContentState extends State<_StudentHomeContent> {
               crossAxisCount: 4,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              children: const [
+              children: [
                 _StatCard(
                   title: 'Attendance %',
-                  value: '95%',
+                  value: '${attendancePercent}%',
                   icon: Icons.check_circle,
                   color: Colors.green,
                 ),
                 _StatCard(
-                  title: 'Pending Homework',
-                  value: '3',
+                  title: 'Homework',
+                  value: homeworkCount.toString(),
                   icon: Icons.assignment,
                   color: Colors.orange,
                 ),
                 _StatCard(
                   title: 'Total Classes',
-                  value: '6',
+                  value: totalClasses.toString(),
                   icon: Icons.class_,
                   color: Colors.blue,
                 ),
-                _StatCard(
+                const _StatCard(
                   title: 'Grade',
-                  value: 'A+',
+                  value: '-',
                   icon: Icons.grade,
                   color: Colors.purple,
                 ),
