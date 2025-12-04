@@ -32,6 +32,8 @@ class AuthProvider extends ChangeNotifier {
   final Map<int, List<Map<String, String>>> _classTimetables = {};
   // studentId -> list of attendance records
   final Map<String, List<Attendance>> _studentAttendance = {};
+  // key: studentId|classNumber|subject -> set of completed lessonIds (in-memory)
+  final Map<String, Set<String>> _lessonCompletions = {};
 
   static const String _teacherCredsKey = 'teacher_credentials';
 
@@ -39,6 +41,10 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<String> get teacherEmails => _teachers.keys.toList(growable: false);
+  Map<String, Map<String, dynamic>> get allTeachers => _teachers;
+
+  Map<String, dynamic>? getTeacher(String email) => _teachers[email];
+
   List<Map<String, dynamic>> getStudentsForClass(int classNumber) =>
       _classStudents[classNumber] ?? const [];
   List<Map<String, String>> getLessonsForClass(int classNumber) =>
@@ -49,6 +55,21 @@ class AuthProvider extends ChangeNotifier {
       _classTimetables[classNumber] ?? const [];
   List<Attendance> getAttendanceForStudent(String studentId) =>
       _studentAttendance[studentId] ?? const [];
+
+  String _lessonCompletionKey(String studentId, int classNumber, String subject) =>
+      '$studentId|$classNumber|${subject.toLowerCase()}';
+
+  bool isLessonCompleted(
+    String studentId,
+    int classNumber,
+    String subject,
+    String lessonId,
+  ) {
+    final key = _lessonCompletionKey(studentId, classNumber, subject);
+    final set = _lessonCompletions[key];
+    if (set == null) return false;
+    return set.contains(lessonId);
+  }
 
   Future<void> _loadTeacherCredentialsIfNeeded() async {
     if (_teacherCredsLoaded) return;
@@ -222,6 +243,42 @@ class AuthProvider extends ChangeNotifier {
     }, SetOptions(merge: true));
   }
 
+  Future<void> updateTeacher({
+    required String email,
+    String? name,
+    int? classNumber,
+    String? subject,
+    String? password,
+  }) async {
+    final existing = _teachers[email] ?? <String, dynamic>{};
+
+    if (password != null) {
+      existing['password'] = password;
+    }
+    if (classNumber != null) {
+      existing['classNumber'] = classNumber;
+    }
+    if (subject != null) {
+      existing['subject'] = subject;
+    }
+
+    _teachers[email] = existing;
+    await _saveTeacherCredentials();
+
+    final users = FirebaseFirestore.instance.collection('users');
+    final updateData = <String, dynamic>{};
+    if (name != null) updateData['name'] = name;
+    if (classNumber != null) updateData['classNumber'] = classNumber;
+    if (subject != null) updateData['subject'] = subject;
+    if (password != null) updateData['password'] = password;
+
+    if (updateData.isNotEmpty) {
+      await users.doc(email).set(updateData, SetOptions(merge: true));
+    }
+
+    notifyListeners();
+  }
+
   Future<void> deleteTeacher(String email) async {
     // Remove from in-memory cache
     _teachers.remove(email);
@@ -239,22 +296,15 @@ class AuthProvider extends ChangeNotifier {
     required String loginId,
     required String password,
   }) async {
-    final list = _classStudents[classNumber] ?? <Map<String, dynamic>>[];
+    final current = _classStudents[classNumber] ?? const <Map<String, dynamic>>[];
     // Simple rule: don't allow duplicate roll numbers in same class
-    final exists = list.any((s) => s['rollNo'] == rollNo);
-    if (!exists) {
-      list.add({
-        'name': name,
-        'rollNo': rollNo,
-        'loginId': loginId,
-      });
+    final exists = current.any((s) => s['rollNo'] == rollNo);
+    if (exists) return;
 
-      _classStudents[classNumber] = list;
-      notifyListeners();
-
+    try {
       // Persist student basic record in a separate 'students' collection
       final students = FirebaseFirestore.instance.collection('students');
-      await students.add({
+      await students.add(<String, Object>{
         'name': name,
         'rollNo': rollNo,
         'classNumber': classNumber,
@@ -264,7 +314,7 @@ class AuthProvider extends ChangeNotifier {
 
       // Also create a user document so the student can log in
       final users = FirebaseFirestore.instance.collection('users');
-      await users.doc(loginId).set({
+      await users.doc(loginId).set(<String, Object>{
         'email': loginId,
         'password': password,
         'role': AppConstants.studentRole,
@@ -273,6 +323,8 @@ class AuthProvider extends ChangeNotifier {
         'name': name,
         'createdAt': DateTime.now().toIso8601String(),
       }, SetOptions(merge: true));
+    } catch (e) {
+      print('Error adding student: $e');
     }
   }
 
@@ -454,6 +506,7 @@ class AuthProvider extends ChangeNotifier {
     required int classNumber,
     required String title,
     required String desc,
+    String? unit,
     String? imageUrl,
   }) async {
     // Persist to Firestore; subject will be set by caller via currentUser.subject
@@ -461,6 +514,7 @@ class AuthProvider extends ChangeNotifier {
     await classes.doc(classNumber.toString()).collection('lessons').add({
       'title': title,
       'desc': desc,
+      'unit': unit ?? '',
       'imageUrl': imageUrl ?? '',
       'subject': _currentUser?.subject ?? '',
       'createdAt': DateTime.now().toIso8601String(),
@@ -520,6 +574,7 @@ class AuthProvider extends ChangeNotifier {
         'id': d.id,
         'title': data['title'] as String? ?? '',
         'desc': data['desc'] as String? ?? '',
+        'unit': data['unit'] as String? ?? '',
         'imageUrl': data['imageUrl'] as String? ?? '',
         'subject': data['subject'] as String? ?? '',
       };
@@ -612,21 +667,71 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<List<String>> loadSubjectsForClass(int classNumber) async {
-    final snap = await FirebaseFirestore.instance
+    // Collect subjects from multiple sources so that any subject which has
+    // lessons/homeworks for this class is visible to students, even if the
+    // teacher's primary classNumber is different.
+
+    final subjects = <String>{};
+
+    // 1) Subjects from teachers explicitly assigned to this class
+    final teacherSnap = await FirebaseFirestore.instance
         .collection('users')
         .where('role', isEqualTo: AppConstants.teacherRole)
         .where('classNumber', isEqualTo: classNumber)
         .get();
 
-    final subjects = <String>{};
-    for (final d in snap.docs) {
+    for (final d in teacherSnap.docs) {
       final data = d.data();
-      final subject = data['subject'] as String? ?? '';
+      final subject = (data['subject'] as String? ?? '').trim();
       if (subject.isNotEmpty) {
         subjects.add(subject);
       }
     }
-    return subjects.toList()..sort();
+
+    final classesCol = FirebaseFirestore.instance.collection('classes');
+
+    // 2) Subjects from lessons under classes/{classNumber}/lessons
+    final lessonsSnap = await classesCol
+        .doc(classNumber.toString())
+        .collection('lessons')
+        .get();
+
+    // Legacy path: classes/Class {classNumber}/lessons
+    final legacyLessonsSnap = await classesCol
+        .doc('Class $classNumber')
+        .collection('lessons')
+        .get();
+
+    for (final d in [...lessonsSnap.docs, ...legacyLessonsSnap.docs]) {
+      final data = d.data();
+      final subject = (data['subject'] as String? ?? '').trim();
+      if (subject.isNotEmpty) {
+        subjects.add(subject);
+      }
+    }
+
+    // 3) Subjects from homeworks under classes/{classNumber}/homeworks
+    final hwSnap = await classesCol
+        .doc(classNumber.toString())
+        .collection('homeworks')
+        .get();
+
+    final legacyHwSnap = await classesCol
+        .doc('Class $classNumber')
+        .collection('homeworks')
+        .get();
+
+    for (final d in [...hwSnap.docs, ...legacyHwSnap.docs]) {
+      final data = d.data();
+      final subject = (data['subject'] as String? ?? '').trim();
+      if (subject.isNotEmpty) {
+        subjects.add(subject);
+      }
+    }
+
+    final list = subjects.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list;
   }
 
   Future<void> submitHomework({
@@ -677,6 +782,70 @@ class AuthProvider extends ChangeNotifier {
               'answerText': d['answerText'] as String? ?? '',
             })
         .toList();
+  }
+
+  Future<int> countSubmittedHomeworksForSubject({
+    required int classNumber,
+    required String subject,
+    required String studentId,
+  }) async {
+    // Use in-memory homework list when available to avoid extra queries
+    final homeworks = _classHomeworks[classNumber] ?? const [];
+    final subjectHomeworks = homeworks.where((h) {
+      final s = (h['subject'] as String? ?? '').trim();
+      return s.isNotEmpty &&
+          s.toLowerCase() == subject.toLowerCase();
+    }).toList();
+
+    if (subjectHomeworks.isEmpty) return 0;
+
+    int submitted = 0;
+    final classesCol = FirebaseFirestore.instance.collection('classes');
+    for (final h in subjectHomeworks) {
+      final homeworkId = h['id'] as String?;
+      if (homeworkId == null || homeworkId.isEmpty) continue;
+
+      final submissionDoc = await classesCol
+          .doc(classNumber.toString())
+          .collection('homeworks')
+          .doc(homeworkId)
+          .collection('submissions')
+          .doc(studentId)
+          .get();
+
+      if (submissionDoc.exists) {
+        submitted++;
+      }
+    }
+
+    return submitted;
+  }
+
+  Future<void> markLessonComplete({
+    required int classNumber,
+    required String subject,
+    required String lessonId,
+  }) async {
+    final user = _currentUser;
+    if (user == null) return;
+
+    final key = _lessonCompletionKey(user.id, classNumber, subject);
+    final set = _lessonCompletions.putIfAbsent(key, () => <String>{});
+    if (set.contains(lessonId)) {
+      return;
+    }
+
+    final col = FirebaseFirestore.instance.collection('lesson_completions');
+    await col.add({
+      'studentId': user.id,
+      'classNumber': classNumber,
+      'subject': subject,
+      'lessonId': lessonId,
+      'completedAt': DateTime.now().toIso8601String(),
+    });
+
+    set.add(lessonId);
+    notifyListeners();
   }
 
   Future<void> logout() async {

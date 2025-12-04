@@ -163,20 +163,22 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                       ),
                       const SizedBox(width: 12),
                       ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           if (!_formKey.currentState!.validate()) return;
                           final name = _nameController.text.trim();
                           final rollNo =
                               int.parse(_rollController.text.trim());
                           final loginId = _loginIdController.text.trim();
                           final password = _passwordController.text.trim();
-                          context.read<AuthProvider>().addStudent(
-                                classNumber: _selectedClass,
-                                name: name,
-                                rollNo: rollNo,
-                                loginId: loginId,
-                                password: password,
-                              );
+                          final auth = context.read<AuthProvider>();
+                          await auth.addStudent(
+                            classNumber: _selectedClass,
+                            name: name,
+                            rollNo: rollNo,
+                            loginId: loginId,
+                            password: password,
+                          );
+                          await auth.loadStudentsForClass(_selectedClass);
                           _nameController.clear();
                           _rollController.clear();
                           _loginIdController.clear();

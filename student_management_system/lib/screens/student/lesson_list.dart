@@ -19,6 +19,7 @@ class LessonListScreen extends StatefulWidget {
 
 class _LessonListScreenState extends State<LessonListScreen> {
   bool _isLoading = false;
+  int _submittedHomeworkCount = 0;
 
   @override
   void initState() {
@@ -30,6 +31,19 @@ class _LessonListScreenState extends State<LessonListScreen> {
       });
       await auth.loadLessonsForClass(widget.classNumber);
       await auth.loadHomeworksForClass(widget.classNumber);
+      final user = auth.currentUser;
+      if (user != null) {
+        final submitted = await auth.countSubmittedHomeworksForSubject(
+          classNumber: widget.classNumber,
+          subject: widget.subject,
+          studentId: user.id,
+        );
+        if (mounted) {
+          setState(() {
+            _submittedHomeworkCount = submitted;
+          });
+        }
+      }
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -41,6 +55,7 @@ class _LessonListScreenState extends State<LessonListScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final user = auth.currentUser;
     final allHomeworks = auth.getHomeworksForClass(widget.classNumber);
 
     List<Map<String, dynamic>> _filterHomeworksBySubject(
@@ -67,21 +82,6 @@ class _LessonListScreenState extends State<LessonListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Lessons',
-                        style: theme.textTheme.titleLarge,
-                      ),
-                      Chip(
-                        label: Text('Class ${widget.classNumber}'),
-                        backgroundColor:
-                            theme.colorScheme.primary.withOpacity(0.08),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
                   StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .collection('classes')
@@ -112,7 +112,8 @@ class _LessonListScreenState extends State<LessonListScreen> {
                             widget.subject.toLowerCase();
                       }).toList();
 
-                      if (docs.isEmpty) {
+                      final totalLessons = docs.length;
+                      if (totalLessons == 0) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8.0),
                           child: Text(
@@ -120,101 +121,257 @@ class _LessonListScreenState extends State<LessonListScreen> {
                         );
                       }
 
-                      return ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: docs.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final data = docs[index].data();
-                          final title = (data['title'] as String?)?.trim();
-                          final desc = (data['desc'] as String?)?.trim() ?? '';
-                          final imageUrl =
-                              (data['imageUrl'] as String?)?.trim() ?? '';
-                          final displayTitle = title != null && title.isNotEmpty
-                              ? title
-                              : 'Lesson ${index + 1}';
+                      // Group lessons by unit label (teacher-defined)
+                      final Map<String,
+                              List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+                          units = {};
 
-                          return Card(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                      for (final d in docs) {
+                        final data = d.data();
+                        final rawUnit = (data['unit'] as String? ?? '').trim();
+                        final unitKey = rawUnit.isEmpty ? 'Other' : rawUnit;
+                        units.putIfAbsent(unitKey, () => []).add(d);
+                      }
+
+                      final unitNames = units.keys.toList()
+                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+                      // Lessons progress: use in-memory completions if present
+                      int completedLessons = 0;
+                      if (user != null) {
+                        for (final d in docs) {
+                          if (auth.isLessonCompleted(
+                            user.id,
+                            widget.classNumber,
+                            widget.subject,
+                            d.id,
+                          )) {
+                            completedLessons++;
+                          }
+                        }
+                      }
+
+                      final lessonsProgress = totalLessons == 0
+                          ? 0
+                          : ((completedLessons / totalLessons) * 100).round();
+
+                      // Homework progress based on actual submissions
+                      final totalHomeworks = homeworks.length;
+                      final submittedHomeworks = totalHomeworks == 0
+                          ? 0
+                          : _submittedHomeworkCount.clamp(0, totalHomeworks);
+                      final homeworkProgress = totalHomeworks == 0
+                          ? 0
+                          : ((submittedHomeworks / totalHomeworks) * 100)
+                              .round();
+
+                      String yearLabelForClass(int c) {
+                        switch (c) {
+                          case 1:
+                            return 'Year One';
+                          case 2:
+                            return 'Year Two';
+                          case 3:
+                            return 'Year Three';
+                          case 4:
+                            return 'Year Four';
+                          case 5:
+                            return 'Year Five';
+                          default:
+                            return 'Year $c';
+                        }
+                      }
+
+                      final yearLabel = yearLabelForClass(widget.classNumber);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Premium-style header
+                          Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            color: Colors.orange.shade50,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => LessonDetailScreen(
-                                      title: displayTitle,
-                                      description: desc,
-                                      imageUrl: imageUrl,
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    CircleAvatar(
-                                      backgroundColor:
-                                          Colors.white.withOpacity(0.9),
-                                      child: const Icon(Icons.menu_book,
-                                          color: Colors.deepOrange),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.subject,
+                                        style: theme.textTheme.titleLarge
+                                            ?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 4,
                                         children: [
-                                          Text(
-                                            displayTitle,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium,
+                                          Chip(
+                                            label: Text(yearLabel),
+                                            backgroundColor: Colors.white
+                                                .withOpacity(0.12),
+                                            labelStyle: const TextStyle(
+                                              color: Colors.white,
+                                            ),
                                           ),
-                                          if (desc.isNotEmpty)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                  top: 4.0,
-                                                  right: 4.0,
-                                                  bottom: 4.0),
-                                              child: Text(
-                                                desc,
-                                                maxLines: 2,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                              ),
+                                          Chip(
+                                            label:
+                                                Text('$totalLessons lessons'),
+                                            backgroundColor: Colors.white
+                                                .withOpacity(0.12),
+                                            labelStyle: const TextStyle(
+                                              color: Colors.white,
                                             ),
-                                          if (imageUrl.isNotEmpty)
-                                            ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              child: Image.network(
-                                                imageUrl,
-                                                height: 80,
-                                                width: double.infinity,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error,
-                                                        stackTrace) =>
-                                                    const SizedBox(),
-                                              ),
+                                          ),
+                                          Chip(
+                                            label: Text(
+                                                '$totalHomeworks homework'),
+                                            backgroundColor: Colors.white
+                                                .withOpacity(0.12),
+                                            labelStyle: const TextStyle(
+                                              color: Colors.white,
                                             ),
+                                          ),
                                         ],
                                       ),
-                                    ),
-                                    const Icon(Icons.arrow_forward_ios,
-                                        size: 16),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 16),
+                                SizedBox(
+                                  width: 140,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // Lessons progress circle
+                                      _ProgressCircle(
+                                        label: 'Lessons',
+                                        percent: lessonsProgress,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _ProgressCircle(
+                                        label: 'Homework',
+                                        percent: homeworkProgress,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          );
-                        },
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Units & Lessons',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: unitNames.length,
+                            itemBuilder: (context, unitIndex) {
+                              final unitName = unitNames[unitIndex];
+                              final unitDocs = units[unitName] ?? const [];
+
+                              return Card(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 1.5,
+                                child: ExpansionTile(
+                                  title: Text(
+                                    unitName,
+                                    style: theme.textTheme.titleMedium,
+                                  ),
+                                  childrenPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  children: unitDocs.asMap().entries.map((e) {
+                                    final index = e.key;
+                                    final doc = e.value;
+                                    final data = doc.data();
+                                    final title =
+                                        (data['title'] as String?)?.trim();
+                                    final desc =
+                                        (data['desc'] as String?)?.trim() ?? '';
+                                    final imageUrl =
+                                        (data['imageUrl'] as String?)?.trim() ?? '';
+                                    final displayTitle =
+                                        title != null && title.isNotEmpty
+                                            ? title
+                                            : 'Lesson ${index + 1}';
+                                    final lessonId = doc.id;
+
+                                    final isCompleted = user != null &&
+                                        auth.isLessonCompleted(
+                                          user.id,
+                                          widget.classNumber,
+                                          widget.subject,
+                                          lessonId,
+                                        );
+
+                                    return ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
+                                      leading: const Icon(Icons.play_arrow),
+                                      title: Text(
+                                        displayTitle,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      subtitle: desc.isNotEmpty
+                                          ? Text(
+                                              desc,
+                                              maxLines: 2,
+                                              overflow:
+                                                  TextOverflow.ellipsis,
+                                            )
+                                          : null,
+                                      trailing: Icon(
+                                        isCompleted
+                                            ? Icons.check_circle
+                                            : Icons.radio_button_unchecked,
+                                        color: isCompleted
+                                            ? Colors.green
+                                            : Colors.grey,
+                                      ),
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => LessonDetailScreen(
+                                              classNumber: widget.classNumber,
+                                              subject: widget.subject,
+                                              lessonId: lessonId,
+                                              title: displayTitle,
+                                              description: desc,
+                                              imageUrl: imageUrl,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       );
                     },
                   ),
@@ -293,6 +450,61 @@ class _LessonListScreenState extends State<LessonListScreen> {
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _ProgressCircle extends StatelessWidget {
+  final String label;
+  final int percent;
+
+  const _ProgressCircle({
+    required this.label,
+    required this.percent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = percent.clamp(0, 100);
+    final value = clamped / 100.0;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          height: 48,
+          width: 48,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CircularProgressIndicator(
+                value: value,
+                strokeWidth: 5,
+                backgroundColor:
+                    theme.colorScheme.onPrimary.withOpacity(0.15),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  theme.colorScheme.secondary,
+                ),
+              ),
+              Text(
+                '$clamped%',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -398,12 +610,18 @@ class HomeworkDetailScreen extends StatelessWidget {
 }
 
 class LessonDetailScreen extends StatelessWidget {
+  final int classNumber;
+  final String subject;
+  final String lessonId;
   final String title;
   final String description;
   final String imageUrl;
 
   const LessonDetailScreen({
     super.key,
+    required this.classNumber,
+    required this.subject,
+    required this.lessonId,
     required this.title,
     required this.description,
     this.imageUrl = '',
@@ -411,34 +629,71 @@ class LessonDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final user = auth.currentUser;
+    final completed = user != null &&
+        auth.isLessonCompleted(user.id, classNumber, subject, lessonId);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                description.isNotEmpty
-                    ? description
-                    : 'No details provided for this lesson.',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              if (imageUrl.isNotEmpty) const SizedBox(height: 16),
-              if (imageUrl.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    imageUrl,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      description.isNotEmpty
+                          ? description
+                          : 'No details provided for this lesson.',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    if (imageUrl.isNotEmpty) const SizedBox(height: 16),
+                    if (imageUrl.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          imageUrl,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: (user == null || completed)
+                    ? null
+                    : () async {
+                        await context
+                            .read<AuthProvider>()
+                            .markLessonComplete(
+                              classNumber: classNumber,
+                              subject: subject,
+                              lessonId: lessonId,
+                            );
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                        }
+                      },
+                icon: Icon(
+                  completed ? Icons.check_circle : Icons.check,
+                ),
+                label: Text(
+                  completed ? 'Completed' : 'Mark as complete',
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -66,6 +66,26 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
 
     final theme = Theme.of(context);
 
+    String yearLabelForClass(int c) {
+      // Simple mapping; adjust as needed
+      switch (c) {
+        case 1:
+          return 'Year One';
+        case 2:
+          return 'Year Two';
+        case 3:
+          return 'Year Three';
+        case 4:
+          return 'Year Four';
+        case 5:
+          return 'Year Five';
+        default:
+          return 'Year $c';
+      }
+    }
+
+    final yearLabel = yearLabelForClass(classNumber);
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -76,9 +96,20 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'My Subjects',
-                    style: theme.textTheme.titleLarge,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'My Modules',
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Your enrolled subjects',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
                   Chip(
                     label: Text('Class $classNumber'),
@@ -103,47 +134,110 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                 Expanded(
                   child: ListView.separated(
                     itemCount: _subjects.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final subject = _subjects[index];
-                      final colors = [
-                        Colors.orange.shade100,
-                        Colors.lightBlue.shade100,
-                        Colors.green.shade100,
-                        Colors.purple.shade100,
+                      final gradients = [
+                        [Colors.deepPurple, Colors.indigo],
+                        [Colors.teal, Colors.blueAccent],
+                        [Colors.orange, Colors.deepOrangeAccent],
+                        [Colors.pink, Colors.purpleAccent],
                       ];
-                      final bgColor = colors[index % colors.length];
+                      final colors = gradients[index % gradients.length];
 
-                      return Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              colors[0].withOpacity(0.9),
+                              colors[1].withOpacity(0.9),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colors[1].withOpacity(0.25),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
-                        color: bgColor,
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor:
-                                Colors.white.withOpacity(0.9),
-                            child: const Icon(Icons.menu_book,
-                                color: Colors.deepOrange),
-                          ),
-                          title: Text(
-                            subject,
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          subtitle: Text('Class $classNumber'),
-                          trailing:
-                              const Icon(Icons.arrow_forward_ios, size: 16),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => LessonListScreen(
-                                  classNumber: classNumber,
-                                  subject: subject,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              CircleAvatar(
+                                radius: 24,
+                                backgroundColor:
+                                    Colors.white.withOpacity(0.15),
+                                child: const Icon(
+                                  Icons.menu_book,
+                                  color: Colors.white,
                                 ),
                               ),
-                            );
-                          },
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      subject,
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      yearLabel,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                        color:
+                                            Colors.white.withOpacity(0.9),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                    side: BorderSide(
+                                      color: Colors.white.withOpacity(0.8),
+                                    ),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => LessonListScreen(
+                                        classNumber: classNumber,
+                                        subject: subject,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.arrow_forward,
+                                  size: 18,
+                                ),
+                                label: const Text('Go To Module'),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },

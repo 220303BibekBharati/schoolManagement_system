@@ -30,7 +30,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     'Teacher Dashboard',
     'My Timetable',
     'Take Attendance',
-    'Assign Homework',
+    'Classes',
   ];
 
   @override
@@ -46,7 +46,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         body = const AttendanceScreen();
         break;
       case 3:
-        body = const HomeworkScreen();
+        body = const TeacherClassesScreen();
         break;
       case 0:
       default:
@@ -111,8 +111,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             label: 'Attendance',
           ),
           NavigationDestination(
-            icon: Icon(Icons.assignment),
-            label: 'Homework',
+            icon: Icon(Icons.menu_book),
+            label: 'Classes',
           ),
         ],
       ),
@@ -265,13 +265,27 @@ class TeacherHome extends StatelessWidget {
                   title: 'Assign Homework',
                   icon: Icons.assignment,
                   color: Colors.blue,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HomeworkScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _ActionCard(
                   title: 'Upload Lesson',
                   icon: Icons.upload_file,
                   color: Colors.orange,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HomeworkScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _ActionCard(
                   title: 'View Reports',
@@ -316,6 +330,174 @@ class TeacherHome extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TeacherClassesScreen extends StatelessWidget {
+  const TeacherClassesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    String yearLabelForClass(int c) {
+      switch (c) {
+        case 1:
+          return 'Year One';
+        case 2:
+          return 'Year Two';
+        case 3:
+          return 'Year Three';
+        case 4:
+          return 'Year Four';
+        case 5:
+          return 'Year Five';
+        default:
+          return 'Year $c';
+      }
+    }
+
+    final gradients = [
+      [Colors.deepPurple, Colors.indigo],
+      [Colors.teal, Colors.blueAccent],
+      [Colors.orange, Colors.deepOrangeAccent],
+      [Colors.pink, Colors.purpleAccent],
+    ];
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Classes',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Choose a class to manage modules',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.separated(
+                itemCount: 10,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final classNumber = index + 1;
+                  final colors = gradients[index % gradients.length];
+                  final yearLabel = yearLabelForClass(classNumber);
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          colors[0].withOpacity(0.9),
+                          colors[1].withOpacity(0.9),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colors[1].withOpacity(0.25),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor:
+                                Colors.white.withOpacity(0.15),
+                            child: const Icon(
+                              Icons.menu_book,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Class $classNumber',
+                                  style: theme.textTheme.titleMedium
+                                      ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  yearLabel,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                                side: BorderSide(
+                                  color: Colors.white.withOpacity(0.8),
+                                ),
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => HomeworkScreen(
+                                    initialClassNumber: classNumber,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.arrow_forward,
+                              size: 18,
+                            ),
+                            label: const Text('Go To Module'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],

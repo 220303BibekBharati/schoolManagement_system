@@ -4,7 +4,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:student_management_system/providers/auth_provider.dart';
 
 class HomeworkScreen extends StatefulWidget {
-  const HomeworkScreen({super.key});
+  final int? initialClassNumber;
+
+  const HomeworkScreen({
+    super.key,
+    this.initialClassNumber,
+  });
 
   @override
   State<HomeworkScreen> createState() => _HomeworkScreenState();
@@ -13,6 +18,7 @@ class HomeworkScreen extends StatefulWidget {
 class _HomeworkScreenState extends State<HomeworkScreen> {
   final _lessonTitleController = TextEditingController();
   final _lessonDescController = TextEditingController();
+  final _lessonUnitController = TextEditingController();
   final _hwTitleController = TextEditingController();
   final _hwDescController = TextEditingController();
 
@@ -24,15 +30,18 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
   @override
   void initState() {
     super.initState();
-    // Load existing lessons and homework for this teacher's class from Firestore
+    // Load existing lessons and homework for the selected class from Firestore
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = context.read<AuthProvider>();
-      final user = auth.currentUser;
-      int? classNumber;
-      if (user?.className != null) {
-        final parts = user!.className!.split(' ');
-        if (parts.length == 2) {
-          classNumber = int.tryParse(parts[1]);
+      int? classNumber = widget.initialClassNumber;
+
+      if (classNumber == null) {
+        final user = auth.currentUser;
+        if (user?.className != null) {
+          final parts = user!.className!.split(' ');
+          if (parts.length == 2) {
+            classNumber = int.tryParse(parts[1]);
+          }
         }
       }
 
@@ -50,6 +59,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
   void dispose() {
     _lessonTitleController.dispose();
     _lessonDescController.dispose();
+    _lessonUnitController.dispose();
     _hwTitleController.dispose();
     _hwDescController.dispose();
     super.dispose();
@@ -59,13 +69,28 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final classNumber = _selectedClass;
+    final user = auth.currentUser;
+    final teacherSubject = (user?.subject ?? '').trim();
 
-    final lessons = classNumber != null
+    List<Map<String, String>> _filterBySubject(
+        List<Map<String, String>> items) {
+      if (teacherSubject.isEmpty) return const <Map<String, String>>[];
+      return items.where((item) {
+        final s = (item['subject'] as String? ?? '').trim();
+        if (s.isEmpty) return false;
+        return s.toLowerCase() == teacherSubject.toLowerCase();
+      }).toList();
+    }
+
+    final allLessons = classNumber != null
         ? auth.getLessonsForClass(classNumber)
         : const <Map<String, String>>[];
-    final homeworks = classNumber != null
+    final allHomeworks = classNumber != null
         ? auth.getHomeworksForClass(classNumber)
         : const <Map<String, String>>[];
+
+    final lessons = _filterBySubject(allLessons);
+    final homeworks = _filterBySubject(allHomeworks);
 
     return Scaffold(
       appBar: AppBar(
@@ -132,6 +157,14 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                 maxLines: 2,
               ),
               const SizedBox(height: 8),
+              TextField(
+                controller: _lessonUnitController,
+                decoration: const InputDecoration(
+                  labelText: 'Unit (e.g. Unit 1)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   OutlinedButton.icon(
@@ -193,15 +226,18 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                     if (classNumber == null) return;
                     final title = _lessonTitleController.text.trim();
                     final desc = _lessonDescController.text.trim();
+                    final unit = _lessonUnitController.text.trim();
                     if (title.isEmpty) return;
                     await context.read<AuthProvider>().addLesson(
                           classNumber: classNumber,
                           title: title,
                           desc: desc,
+                          unit: unit.isEmpty ? null : unit,
                           imageUrl: _lessonImageUrl,
                         );
                     _lessonTitleController.clear();
                     _lessonDescController.clear();
+                    _lessonUnitController.clear();
                     setState(() {
                       _lessonImageUrl = null;
                       _lessonImageName = null;
