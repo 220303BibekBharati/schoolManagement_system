@@ -235,8 +235,8 @@ class _StudentHomeContentState extends State<_StudentHomeContent> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  theme.colorScheme.primary,
-                  theme.colorScheme.primary.withOpacity(0.8),
+                  Colors.blue.shade600,
+                  Colors.teal.shade400,
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -294,25 +294,25 @@ class _StudentHomeContentState extends State<_StudentHomeContent> {
                 title: 'Attendance %',
                 value: '${attendancePercent}%',
                 icon: Icons.check_circle,
-                color: Colors.green,
+                color: Colors.teal,
               ),
               _StatCard(
                 title: 'Homework',
                 value: homeworkCount.toString(),
                 icon: Icons.assignment,
-                color: Colors.orange,
+                color: Colors.lightBlue,
               ),
               _StatCard(
                 title: 'Total Classes',
                 value: totalClasses.toString(),
                 icon: Icons.class_,
-                color: Colors.blue,
+                color: Colors.blueAccent,
               ),
               const _StatCard(
                 title: 'Grade',
                 value: '-',
                 icon: Icons.grade,
-                color: Colors.purple,
+                color: Colors.cyan,
               ),
             ],
           ),

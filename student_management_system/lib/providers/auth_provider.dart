@@ -848,6 +848,35 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loadLessonCompletionsForSubject({
+    required int classNumber,
+    required String subject,
+  }) async {
+    final user = _currentUser;
+    if (user == null) return;
+
+    final key = _lessonCompletionKey(user.id, classNumber, subject);
+
+    final col = FirebaseFirestore.instance.collection('lesson_completions');
+    final snap = await col
+        .where('studentId', isEqualTo: user.id)
+        .where('classNumber', isEqualTo: classNumber)
+        .where('subject', isEqualTo: subject)
+        .get();
+
+    final set = <String>{};
+    for (final d in snap.docs) {
+      final data = d.data();
+      final lessonId = data['lessonId'] as String?;
+      if (lessonId != null && lessonId.isNotEmpty) {
+        set.add(lessonId);
+      }
+    }
+
+    _lessonCompletions[key] = set;
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     final user = _currentUser;
     if (user != null && !kIsWeb) {

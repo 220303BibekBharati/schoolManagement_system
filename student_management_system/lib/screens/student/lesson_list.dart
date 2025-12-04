@@ -31,6 +31,10 @@ class _LessonListScreenState extends State<LessonListScreen> {
       });
       await auth.loadLessonsForClass(widget.classNumber);
       await auth.loadHomeworksForClass(widget.classNumber);
+      await auth.loadLessonCompletionsForSubject(
+        classNumber: widget.classNumber,
+        subject: widget.subject,
+      );
       final user = auth.currentUser;
       if (user != null) {
         final submitted = await auth.countSubmittedHomeworksForSubject(

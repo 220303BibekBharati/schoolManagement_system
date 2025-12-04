@@ -137,108 +137,12 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final subject = _subjects[index];
-                      final gradients = [
-                        [Colors.deepPurple, Colors.indigo],
-                        [Colors.teal, Colors.blueAccent],
-                        [Colors.orange, Colors.deepOrangeAccent],
-                        [Colors.pink, Colors.purpleAccent],
-                      ];
-                      final colors = gradients[index % gradients.length];
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              colors[0].withOpacity(0.9),
-                              colors[1].withOpacity(0.9),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colors[1].withOpacity(0.25),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              CircleAvatar(
-                                radius: 24,
-                                backgroundColor:
-                                    Colors.white.withOpacity(0.15),
-                                child: const Icon(
-                                  Icons.menu_book,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      subject,
-                                      style: theme.textTheme.titleMedium
-                                          ?.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      yearLabel,
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                        color:
-                                            Colors.white.withOpacity(0.9),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              TextButton.icon(
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(999),
-                                    side: BorderSide(
-                                      color: Colors.white.withOpacity(0.8),
-                                    ),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => LessonListScreen(
-                                        classNumber: classNumber,
-                                        subject: subject,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(
-                                  Icons.arrow_forward,
-                                  size: 18,
-                                ),
-                                label: const Text('Go To Module'),
-                              ),
-                            ],
-                          ),
-                        ),
+                      return _StudentSubjectTile(
+                        index: index,
+                        classNumber: classNumber,
+                        subject: subject,
+                        yearLabel: yearLabel,
                       );
                     },
                   ),
@@ -251,3 +155,157 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
   }
 }
 
+class _StudentSubjectTile extends StatefulWidget {
+  final int index;
+  final int classNumber;
+  final String subject;
+  final String yearLabel;
+
+  const _StudentSubjectTile({
+    required this.index,
+    required this.classNumber,
+    required this.subject,
+    required this.yearLabel,
+  });
+
+  @override
+  State<_StudentSubjectTile> createState() => _StudentSubjectTileState();
+}
+
+class _StudentSubjectTileState extends State<_StudentSubjectTile> {
+  bool _hovering = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final coolGradients = [
+      [Colors.blue.shade500, Colors.teal.shade400],
+      [Colors.indigo.shade500, Colors.cyan.shade400],
+      [Colors.lightBlue.shade400, Colors.teal.shade300],
+      [Colors.blueGrey.shade500, Colors.blue.shade400],
+    ];
+
+    final colors = coolGradients[widget.index % coolGradients.length];
+
+    final scale = _pressed
+        ? 0.97
+        : _hovering
+            ? 1.03
+            : 1.0;
+
+    void openModule() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LessonListScreen(
+            classNumber: widget.classNumber,
+            subject: widget.subject,
+          ),
+        ),
+      );
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() {
+        _hovering = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTap: openModule,
+        child: AnimatedScale(
+          scale: scale,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutBack,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  colors[0].withOpacity(0.95),
+                  colors[1].withOpacity(0.95),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: colors[1].withOpacity(_hovering ? 0.35 : 0.22),
+                  blurRadius: _hovering ? 18 : 12,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Colors.white.withOpacity(0.15),
+                    child: const Icon(
+                      Icons.menu_book,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.subject,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.yearLabel,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        side: BorderSide(
+                          color: Colors.white.withOpacity(0.85),
+                        ),
+                      ),
+                    ),
+                    onPressed: openModule,
+                    icon: const Icon(
+                      Icons.arrow_forward,
+                      size: 18,
+                    ),
+                    label: const Text('Go To Module'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
